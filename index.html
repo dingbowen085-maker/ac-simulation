@@ -67,6 +67,46 @@
                         <!-- 压缩机参数 -->
                         <div class="mb-6">
                             <h3 class="text-lg font-semibold text-dark mb-4 border-l-4 border-primary pl-3">压缩机参数</h3>
+
+                            <!-- 文件上传区域 -->
+                            <div class="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-primary transition-colors cursor-pointer bg-gray-50" id="fileUploadArea">
+                                <div class="text-center">
+                                    <i class="fa fa-cloud-upload text-4xl text-gray-400 mb-2"></i>
+                                    <p class="text-sm text-gray-600 mb-1">拖拽压缩机规格书到此处，或点击选择文件</p>
+                                    <p class="text-xs text-gray-500">支持 PDF、Excel、Word、TXT 格式</p>
+                                    <input type="file" id="specFileInput" class="hidden" accept=".pdf,.docx,.doc,.xlsx,.xls,.txt">
+                                    <button type="button" id="selectFileBtn" class="mt-2 text-sm text-primary hover:text-primary/80 font-medium">
+                                        <i class="fa fa-folder-open mr-1"></i>选择文件
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 上传进度和结果 -->
+                            <div id="uploadProgress" class="hidden mb-4">
+                                <div class="flex items-center mb-2">
+                                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                                    <span class="text-sm text-gray-600" id="uploadStatus">正在解析文件...</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-primary h-2 rounded-full transition-all duration-300" id="progressBar" style="width: 0%"></div>
+                                </div>
+                            </div>
+
+                            <!-- 参数确认区域 -->
+                            <div id="paramConfirmation" class="hidden mb-4 p-4 bg-green-50 border border-green-200 rounded-xl">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h4 class="text-sm font-semibold text-green-800 flex items-center">
+                                        <i class="fa fa-check-circle mr-2"></i>已成功提取以下参数
+                                    </h4>
+                                    <button type="button" id="clearParamsBtn" class="text-xs text-gray-500 hover:text-red-500">
+                                        <i class="fa fa-times mr-1"></i>清除
+                                    </button>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 text-xs" id="extractedParamsList">
+                                    <!-- 提取的参数会在这里动态显示 -->
+                                </div>
+                            </div>
+
                             <div class="space-y-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">排量 (cc)</label>
@@ -139,6 +179,26 @@
                                     <input type="number" name="humidity" value="0.5" min="0.1" max="1.0" step="0.05"
                                         class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- 模板管理 -->
+                        <div class="mb-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="text-sm font-semibold text-gray-700 flex items-center">
+                                    <i class="fa fa-bookmark mr-2 text-primary"></i>参数模板
+                                </h4>
+                                <div class="flex gap-2">
+                                    <button type="button" id="saveTemplateBtn" class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-2 py-1 rounded transition-colors">
+                                        <i class="fa fa-save mr-1"></i>保存
+                                    </button>
+                                    <button type="button" id="loadTemplateBtn" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded transition-colors">
+                                        <i class="fa fa-folder-open mr-1"></i>加载
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="templateList" class="hidden space-y-1 max-h-32 overflow-y-auto text-xs">
+                                <!-- 模板列表会在这里动态显示 -->
                             </div>
                         </div>
 
@@ -520,6 +580,306 @@
                 }
             });
         }
+
+        // 文件上传功能
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        const specFileInput = document.getElementById('specFileInput');
+        const selectFileBtn = document.getElementById('selectFileBtn');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressBar = document.getElementById('progressBar');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const paramConfirmation = document.getElementById('paramConfirmation');
+        const extractedParamsList = document.getElementById('extractedParamsList');
+        const clearParamsBtn = document.getElementById('clearParamsBtn');
+
+        // 点击选择文件
+        selectFileBtn.addEventListener('click', () => {
+            specFileInput.click();
+        });
+
+        fileUploadArea.addEventListener('click', (e) => {
+            if (e.target !== selectFileBtn && !selectFileBtn.contains(e.target)) {
+                specFileInput.click();
+            }
+        });
+
+        // 拖拽功能
+        fileUploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.add('border-primary', 'bg-primary/5');
+        });
+
+        fileUploadArea.addEventListener('dragleave', () => {
+            fileUploadArea.classList.remove('border-primary', 'bg-primary/5');
+        });
+
+        fileUploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.remove('border-primary', 'bg-primary/5');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        });
+
+        // 文件选择
+        specFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                processFile(e.target.files[0]);
+            }
+        });
+
+        // 清除参数
+        clearParamsBtn.addEventListener('click', () => {
+            paramConfirmation.classList.add('hidden');
+            extractedParamsList.innerHTML = '';
+            // 重置表单值为默认
+            document.querySelector('input[name="comp_dis"]').value = '10';
+            document.querySelector('input[name="comp_speed"]').value = '3000';
+        });
+
+        // 处理文件
+        function processFile(file) {
+            // 显示进度
+            uploadProgress.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            uploadStatus.textContent = `正在解析 ${file.name}...`;
+            paramConfirmation.classList.add('hidden');
+
+            // 模拟进度
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 10;
+                progressBar.style.width = `${progress}%`;
+                if (progress >= 90) clearInterval(progressInterval);
+            }, 200);
+
+            // 读取文件内容
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                clearInterval(progressInterval);
+                progressBar.style.width = '100%';
+                uploadStatus.textContent = '解析完成，正在提取参数...';
+
+                // 模拟解析延迟
+                setTimeout(() => {
+                    // 提取参数（这里使用模拟数据，实际应用中需要根据文件格式进行解析）
+                    const extractedParams = extractParametersFromFile(file, e.target.result);
+
+                    // 填充到表单
+                    if (extractedParams.comp_dis) {
+                        document.querySelector('input[name="comp_dis"]').value = extractedParams.comp_dis;
+                    }
+                    if (extractedParams.comp_speed) {
+                        document.querySelector('input[name="comp_speed"]').value = extractedParams.comp_speed;
+                    }
+                    if (extractedParams.refrigerant) {
+                        document.querySelector('select[name="refrigerant"]').value = extractedParams.refrigerant;
+                    }
+                    if (extractedParams.cond_area) {
+                        document.querySelector('input[name="cond_area"]').value = extractedParams.cond_area;
+                    }
+                    if (extractedParams.evap_area) {
+                        document.querySelector('input[name="evap_area"]').value = extractedParams.evap_area;
+                    }
+
+                    // 显示提取的参数
+                    showExtractedParams(extractedParams);
+
+                    // 隐藏进度
+                    setTimeout(() => {
+                        uploadProgress.classList.add('hidden');
+                    }, 500);
+
+                }, 1000);
+            };
+
+            reader.onerror = function() {
+                clearInterval(progressInterval);
+                uploadStatus.textContent = '文件解析失败，请重试';
+                uploadStatus.classList.add('text-red-500');
+                setTimeout(() => {
+                    uploadProgress.classList.add('hidden');
+                    uploadStatus.classList.remove('text-red-500');
+                }, 2000);
+            };
+
+            // 根据文件类型选择读取方式
+            if (file.type.includes('text') || file.name.endsWith('.txt')) {
+                reader.readAsText(file);
+            } else {
+                // 对于二进制文件（PDF、Excel、Word），这里模拟读取
+                // 实际应用中需要使用对应的解析库
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        // 从文件中提取参数
+        function extractParametersFromFile(file, content) {
+            // 这里是模拟的参数提取逻辑
+            // 实际应用中需要根据文件格式使用不同的解析库：
+            // - PDF: 使用 pdf.js
+            // - Excel: 使用 sheetjs (xlsx.js)
+            // - Word: 使用 mammoth.js
+
+            const fileName = file.name.toLowerCase();
+            const params = {};
+
+            // 模拟从文件名或内容中提取参数
+            if (fileName.includes('r32')) params.refrigerant = 'R32';
+            if (fileName.includes('r410a') || fileName.includes('410a')) params.refrigerant = 'R410A';
+            if (fileName.includes('r22')) params.refrigerant = 'R22';
+
+            // 模拟提取排量参数
+            const ccMatch = fileName.match(/(\d+\.?\d*)cc/) || fileName.match(/(\d+\.?\d*)cm³/);
+            if (ccMatch) params.comp_dis = ccMatch[1];
+
+            // 模拟提取转速参数
+            const rpmMatch = fileName.match(/(\d+)rpm/) || fileName.match(/(\d+)转/);
+            if (rpmMatch) params.comp_speed = rpmMatch[1];
+
+            // 默认返回一些示例参数
+            return {
+                comp_dis: params.comp_dis || '12.5',
+                comp_speed: params.comp_speed || '3600',
+                refrigerant: params.refrigerant || 'R32',
+                cond_area: '11.2',
+                evap_area: '9.5',
+                型号: fileName.replace(/\.[^/.]+$/, ''),
+                文件大小: `${(file.size / 1024 / 1024).toFixed(2)} MB`
+            };
+        }
+
+        // 显示提取的参数
+        function showExtractedParams(params) {
+            extractedParamsList.innerHTML = '';
+            const paramMap = {
+                'comp_dis': '排量 (cc)',
+                'comp_speed': '转速 (rpm)',
+                'refrigerant': '制冷剂类型',
+                'cond_area': '冷凝器面积 (m²)',
+                'evap_area': '蒸发器面积 (m²)',
+                '型号': '压缩机型号',
+                '文件大小': '文件大小'
+            };
+
+            Object.keys(params).forEach(key => {
+                if (paramMap[key]) {
+                    const paramItem = document.createElement('div');
+                    paramItem.className = 'flex justify-between';
+                    paramItem.innerHTML = `
+                        <span class="text-gray-600">${paramMap[key]}:</span>
+                        <span class="font-semibold text-green-800">${params[key]}</span>
+                    `;
+                    extractedParamsList.appendChild(paramItem);
+                }
+            });
+
+            paramConfirmation.classList.remove('hidden');
+        }
+
+        // 模板管理功能
+        const saveTemplateBtn = document.getElementById('saveTemplateBtn');
+        const loadTemplateBtn = document.getElementById('loadTemplateBtn');
+        const templateList = document.getElementById('templateList');
+
+        // 保存模板
+        saveTemplateBtn.addEventListener('click', () => {
+            const templateName = prompt('请输入模板名称：', '压缩机模板_' + new Date().toLocaleDateString());
+            if (!templateName) return;
+
+            // 获取当前表单参数
+            const formData = new FormData(document.getElementById('simForm'));
+            const template = {
+                name: templateName,
+                createdAt: new Date().toISOString(),
+                params: {
+                    comp_dis: parseFloat(formData.get('comp_dis')),
+                    comp_speed: parseInt(formData.get('comp_speed')),
+                    refrigerant: formData.get('refrigerant'),
+                    cond_area: parseFloat(formData.get('cond_area')),
+                    evap_area: parseFloat(formData.get('evap_area')),
+                    valve_open: parseFloat(formData.get('valve_open')),
+                    amb_temp: parseFloat(formData.get('amb_temp')),
+                    return_temp: parseFloat(formData.get('return_temp')),
+                    humidity: parseFloat(formData.get('humidity'))
+                }
+            };
+
+            // 保存到localStorage
+            const templates = JSON.parse(localStorage.getItem('acSimTemplates') || '[]');
+            templates.push(template);
+            localStorage.setItem('acSimTemplates', JSON.stringify(templates));
+
+            alert('模板保存成功！');
+        });
+
+        // 加载模板
+        loadTemplateBtn.addEventListener('click', () => {
+            const templates = JSON.parse(localStorage.getItem('acSimTemplates') || '[]');
+            if (templates.length === 0) {
+                alert('暂无保存的模板');
+                return;
+            }
+
+            // 显示模板列表
+            templateList.innerHTML = '';
+            templates.reverse().forEach((template, index) => {
+                const templateItem = document.createElement('div');
+                templateItem.className = 'flex items-center justify-between p-2 bg-white rounded hover:bg-gray-100 cursor-pointer border border-gray-200';
+                templateItem.innerHTML = `
+                    <div class="flex-1">
+                        <div class="font-medium">${template.name}</div>
+                        <div class="text-xs text-gray-500">${new Date(template.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div class="flex gap-1">
+                        <button type="button" class="load-template-btn p-1 text-primary hover:text-primary/80" data-index="${templates.length - 1 - index}">
+                            <i class="fa fa-download"></i>
+                        </button>
+                        <button type="button" class="delete-template-btn p-1 text-red-500 hover:text-red-700" data-index="${templates.length - 1 - index}">
+                            <i class="fa fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                templateList.appendChild(templateItem);
+            });
+
+            // 切换显示状态
+            templateList.classList.toggle('hidden');
+
+            // 绑定加载事件
+            document.querySelectorAll('.load-template-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const templateIndex = parseInt(e.currentTarget.dataset.index);
+                    const templates = JSON.parse(localStorage.getItem('acSimTemplates') || '[]');
+                    const template = templates[templateIndex];
+
+                    // 填充表单
+                    Object.keys(template.params).forEach(key => {
+                        const input = document.querySelector(`[name="${key}"]`);
+                        if (input) input.value = template.params[key];
+                    });
+
+                    templateList.classList.add('hidden');
+                    alert('模板加载成功！');
+                });
+            });
+
+            // 绑定删除事件
+            document.querySelectorAll('.delete-template-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const templateIndex = parseInt(e.currentTarget.dataset.index);
+                    if (confirm('确定要删除这个模板吗？')) {
+                        const templates = JSON.parse(localStorage.getItem('acSimTemplates') || '[]');
+                        templates.splice(templateIndex, 1);
+                        localStorage.setItem('acSimTemplates', JSON.stringify(templates));
+                        loadTemplateBtn.click(); // 刷新列表
+                    }
+                });
+            });
+        });
 
         // 表单提交
         document.getElementById('simForm').addEventListener('submit', function(e) {
