@@ -1,0 +1,570 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>空调系统仿真软件</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1976D2',
+                        secondary: '#42A5F5',
+                        success: '#10B981',
+                        warning: '#F59E0B',
+                        danger: '#EF4444',
+                        dark: '#1E293B',
+                        light: '#F8FAFC'
+                    },
+                    fontFamily: {
+                        sans: ['Microsoft YaHei', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            }
+            .gradient-bg {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            }
+            .input-focus {
+                @apply focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen gradient-bg p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- 头部 -->
+        <div class="text-center mb-8 md:mb-12">
+            <h1 class="text-[clamp(1.8rem,4vw,3rem)] font-bold text-white mb-3">
+                <i class="fa fa-snowflake-o mr-3"></i>空调系统仿真软件
+            </h1>
+            <p class="text-white/90 text-lg">输入参数，点击计算，立即得到专业的仿真结果</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+            <!-- 左侧参数输入 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-2xl p-6 card-shadow">
+                    <h2 class="text-2xl font-bold text-primary mb-6 flex items-center">
+                        <i class="fa fa-sliders mr-3"></i>参数输入
+                    </h2>
+
+                    <form id="simForm">
+                        <!-- 压缩机参数 -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold text-dark mb-4 border-l-4 border-primary pl-3">压缩机参数</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">排量 (cc)</label>
+                                    <input type="number" name="comp_dis" value="10" min="0.1" step="0.1"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">转速 (rpm)</label>
+                                    <input type="number" name="comp_speed" value="3000" min="1000" step="100"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">制冷剂类型</label>
+                                    <select name="refrigerant" class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                                        <option value="R32" selected>R32</option>
+                                        <option value="R410A">R410A</option>
+                                        <option value="R22">R22</option>
+                                        <option value="R134a">R134a</option>
+                                        <option value="R290">R290</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 换热器参数 -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold text-dark mb-4 border-l-4 border-primary pl-3">换热器参数</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">冷凝器面积 (m²)</label>
+                                    <input type="number" name="cond_area" value="10" min="0.1" step="0.1"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">蒸发器面积 (m²)</label>
+                                    <input type="number" name="evap_area" value="8" min="0.1" step="0.1"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 节流阀参数 -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold text-dark mb-4 border-l-4 border-primary pl-3">节流阀参数</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">阀门开度 (0-1)</label>
+                                    <input type="number" name="valve_open" value="1.0" min="0.1" max="1.0" step="0.1"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 运行工况 -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold text-dark mb-4 border-l-4 border-primary pl-3">运行工况</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">环境温度 (°C)</label>
+                                    <input type="number" name="amb_temp" value="35" min="-20" max="55" step="1"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">回风温度 (°C)</label>
+                                    <input type="number" name="return_temp" value="27" min="10" max="40" step="1"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">相对湿度 (0-1)</label>
+                                    <input type="number" name="humidity" value="0.5" min="0.1" max="1.0" step="0.05"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="calcBtn" class="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-white font-bold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
+                            <i class="fa fa-calculator mr-2"></i>开始计算
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 右侧结果展示 -->
+            <div class="lg:col-span-2 space-y-6 md:space-y-8">
+                <!-- 系统总性能 -->
+                <div class="bg-white rounded-2xl p-6 card-shadow">
+                    <h2 class="text-2xl font-bold text-primary mb-6 flex items-center">
+                        <i class="fa fa-bar-chart mr-3"></i>系统总性能
+                    </h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-light p-4 rounded-xl border-l-4 border-primary">
+                            <div class="text-sm text-gray-500 mb-1">制冷量</div>
+                            <div class="text-2xl font-bold text-dark" id="res_cooling">0.00 <span class="text-sm">kW</span></div>
+                        </div>
+                        <div class="bg-light p-4 rounded-xl border-l-4 border-warning">
+                            <div class="text-sm text-gray-500 mb-1">总功耗</div>
+                            <div class="text-2xl font-bold text-dark" id="res_power">0.00 <span class="text-sm">kW</span></div>
+                        </div>
+                        <div class="bg-light p-4 rounded-xl border-l-4 border-success">
+                            <div class="text-sm text-gray-500 mb-1">COP</div>
+                            <div class="text-2xl font-bold text-dark" id="res_cop">0.00</div>
+                        </div>
+                        <div class="bg-light p-4 rounded-xl border-l-4 border-secondary">
+                            <div class="text-sm text-gray-500 mb-1">EER</div>
+                            <div class="text-2xl font-bold text-dark" id="res_eer">0.00 <span class="text-sm">Btu/Wh</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 压缩机参数 -->
+                <div class="bg-white rounded-2xl p-6 card-shadow">
+                    <h2 class="text-xl font-bold text-dark mb-4 flex items-center">
+                        <i class="fa fa-cog mr-2 text-primary"></i>压缩机参数
+                    </h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-light p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">吸气压力</div>
+                            <div class="text-lg font-bold" id="res_suction_p">0.000 <span class="text-xs">MPa</span></div>
+                        </div>
+                        <div class="bg-light p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">吸气温度</div>
+                            <div class="text-lg font-bold" id="res_suction_t">0.0 <span class="text-xs">°C</span></div>
+                        </div>
+                        <div class="bg-light p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">排气压力</div>
+                            <div class="text-lg font-bold" id="res_discharge_p">0.000 <span class="text-xs">MPa</span></div>
+                        </div>
+                        <div class="bg-light p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">排气温度</div>
+                            <div class="text-lg font-bold" id="res_discharge_t">0.0 <span class="text-xs">°C</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 换热器参数 -->
+                <div class="bg-white rounded-2xl p-6 card-shadow">
+                    <h2 class="text-xl font-bold text-dark mb-4 flex items-center">
+                        <i class="fa fa-snowflake-o mr-2 text-primary"></i>换热器参数
+                    </h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-light p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">冷凝温度</div>
+                            <div class="text-lg font-bold" id="res_cond_t">0.0 <span class="text-xs">°C</span></div>
+                        </div>
+                        <div class="bg-light p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">蒸发温度</div>
+                            <div class="text-lg font-bold" id="res_evap_t">0.0 <span class="text-xs">°C</span></div>
+                        </div>
+                        <div class="bg-light p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">过冷度</div>
+                            <div class="text-lg font-bold" id="res_subcool">0.0 <span class="text-xs">K</span></div>
+                        </div>
+                        <div class="bg-light p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">过热度</div>
+                            <div class="text-lg font-bold" id="res_superheat">0.0 <span class="text-xs">K</span></div>
+                        </div>
+                        <div class="bg-light p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">送风温度</div>
+                            <div class="text-lg font-bold" id="res_air_out">0.0 <span class="text-xs">°C</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 压焓图 -->
+                <div class="bg-white rounded-2xl p-6 card-shadow">
+                    <h2 class="text-xl font-bold text-dark mb-4 flex items-center">
+                        <i class="fa fa-line-chart mr-2 text-primary"></i>压焓图
+                    </h2>
+                    <div class="h-80">
+                        <canvas id="phChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载弹窗 -->
+    <div id="loadingModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-8 rounded-2xl text-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+            <p class="text-lg font-semibold">正在计算，请稍候...</p>
+        </div>
+    </div>
+
+    <script>
+        // 制冷剂物性数据库（简化版，实际应用中可以使用更完整的数据库）
+        const refrigerantProps = {
+            'R32': {
+                // 饱和压力(MPa)对应温度(°C)的简化拟合参数
+                pSatA: 14.54,
+                pSatB: -2467,
+                pSatC: 0.0023,
+                // 等熵焓升参数
+                hIsenA: 2.1,
+                hIsenB: 0.003,
+            },
+            'R410A': {
+                pSatA: 14.37,
+                pSatB: -2415,
+                pSatC: 0.0021,
+                hIsenA: 2.0,
+                hIsenB: 0.0028,
+            }
+        };
+
+        // 计算饱和压力（MPa）对应饱和温度（°C）
+        function getSatTemp(p, refrigerant = 'R32') {
+            const props = refrigerantProps[refrigerant] || refrigerantProps.R32;
+            // 简化的安托尼方程
+            const pAbs = p * 1e6; // Pa
+            return (props.pSatB / (Math.log(pAbs / 1e3) - props.pSatA)) - 273.15 + props.pSatC * pAbs;
+        }
+
+        // 计算饱和温度对应饱和压力
+        function getSatPressure(t, refrigerant = 'R32') {
+            const props = refrigerantProps[refrigerant] || refrigerantProps.R32;
+            const tAbs = t + 273.15;
+            return Math.exp(props.pSatA - props.pSatB / tAbs) * 1e3 / 1e6; // MPa
+        }
+
+        // 主计算函数
+        function calculateSimulation(params) {
+            const {
+                comp_dis, comp_speed, refrigerant,
+                cond_area, evap_area,
+                valve_open,
+                amb_temp, return_temp, humidity
+            } = params;
+
+            // 1. 初始参数估计
+            let cond_p = getSatPressure(amb_temp + 10, refrigerant); // 冷凝压力估计
+            let evap_p = getSatPressure(return_temp - 15, refrigerant); // 蒸发压力估计
+
+            // 迭代求解
+            let results = {};
+            for (let iter = 0; iter < 20; iter++) {
+                // 压缩机计算
+                const vol_displacement = comp_dis * 1e-6 * comp_speed / 60; // m³/s
+                const suction_v = 0.03; // 吸气比容 m³/kg（简化估计）
+                const mass_flow = vol_displacement * 0.95 / suction_v; // 0.95容积效率
+
+                // 等熵焓升估计
+                const delta_h_isentropic = 180000; // J/kg 简化值
+                const isen_eff = 0.8;
+                const power_input = mass_flow * delta_h_isentropic / isen_eff / 0.9; // 电机效率0.9
+                const discharge_t = 85 + (cond_p - 3) * 20; // 简化排气温度估计
+
+                // 冷凝器计算
+                const cond_t = getSatTemp(cond_p, refrigerant);
+                const subcooling = 5;
+                const cond_out_t = cond_t - subcooling;
+                const heat_rejection = mass_flow * (250000 + 1500 * (discharge_t - cond_t)); // 简化换热量
+
+                // 节流阀计算
+                const valve_cv = 1;
+                const valve_mass_flow = valve_cv * valve_open * Math.sqrt((cond_p - evap_p) * 1e6) * 0.001;
+
+                // 蒸发器计算
+                const evap_t = getSatTemp(evap_p, refrigerant);
+                const superheat = 5;
+                const evap_out_t = evap_t + superheat;
+                const cooling_capacity = mass_flow * (280000 + 1000 * (return_temp - evap_t)); // 简化制冷量
+                const air_out_t = return_temp - cooling_capacity / (mass_flow * 1005); // 简化送风温度
+
+                // 流量平衡修正
+                const mass_error = Math.abs(mass_flow - valve_mass_flow);
+                if (mass_error < 1e-3 || iter === 19) {
+                    // 收敛，计算最终结果
+                    const total_power = power_input / 1000 + 0.8; // 加上风机功耗估计
+                    const cop = cooling_capacity / 1000 / total_power;
+
+                    results = {
+                        system: {
+                            cooling_capacity: cooling_capacity / 1000, // kW
+                            total_power_consumption: total_power, // kW
+                            cop: cop,
+                            eer: cop * 3.412
+                        },
+                        compressor: {
+                            suction_pressure: evap_p, // MPa
+                            suction_temperature: evap_out_t, // °C
+                            discharge_pressure: cond_p, // MPa
+                            discharge_temperature: discharge_t, // °C
+                            power_consumption: power_input / 1000, // kW
+                            mass_flow_rate: mass_flow,
+                            isentropic_efficiency: isen_eff
+                        },
+                        condenser: {
+                            condensing_temperature: cond_t, // °C
+                            condensing_pressure: cond_p, // MPa
+                            outlet_temperature: cond_out_t, // °C
+                            subcooling: subcooling,
+                            heat_rejection: heat_rejection / 1000 // kW
+                        },
+                        evaporator: {
+                            evaporating_temperature: evap_t, // °C
+                            evaporating_pressure: evap_p, // MPa
+                            outlet_temperature: evap_out_t, // °C
+                            superheat: superheat,
+                            cooling_capacity: cooling_capacity / 1000, // kW
+                            air_outlet_temperature: Math.max(air_out_t, 10) // 最低送风温度10°C
+                        },
+                        expansion_valve: {
+                            inlet_pressure: cond_p,
+                            inlet_temperature: cond_out_t,
+                            outlet_pressure: evap_p,
+                            outlet_temperature: evap_t
+                        }
+                    };
+                    break;
+                }
+
+                // 修正压力
+                if (mass_flow > valve_mass_flow) {
+                    cond_p *= 1.02;
+                    evap_p *= 0.98;
+                } else {
+                    cond_p *= 0.98;
+                    evap_p *= 1.02;
+                }
+            }
+
+            return results;
+        }
+
+        // 更新结果显示
+        function updateResults(results) {
+            // 系统总性能
+            document.getElementById('res_cooling').textContent = results.system.cooling_capacity.toFixed(2);
+            document.getElementById('res_power').textContent = results.system.total_power_consumption.toFixed(2);
+            document.getElementById('res_cop').textContent = results.system.cop.toFixed(2);
+            document.getElementById('res_eer').textContent = results.system.eer.toFixed(2);
+
+            // 压缩机参数
+            document.getElementById('res_suction_p').textContent = results.compressor.suction_pressure.toFixed(3);
+            document.getElementById('res_suction_t').textContent = results.compressor.suction_temperature.toFixed(1);
+            document.getElementById('res_discharge_p').textContent = results.compressor.discharge_pressure.toFixed(3);
+            document.getElementById('res_discharge_t').textContent = results.compressor.discharge_temperature.toFixed(1);
+
+            // 换热器参数
+            document.getElementById('res_cond_t').textContent = results.condenser.condensing_temperature.toFixed(1);
+            document.getElementById('res_evap_t').textContent = results.evaporator.evaporating_temperature.toFixed(1);
+            document.getElementById('res_subcool').textContent = results.condenser.subcooling.toFixed(1);
+            document.getElementById('res_superheat').textContent = results.evaporator.superheat.toFixed(1);
+            document.getElementById('res_air_out').textContent = results.evaporator.air_outlet_temperature.toFixed(1);
+
+            // 更新压焓图
+            updatePHChart(results);
+        }
+
+        // 压焓图
+        let phChart = null;
+        function updatePHChart(results) {
+            const ctx = document.getElementById('phChart').getContext('2d');
+
+            // 简化的压焓曲线数据
+            const hRange = Array.from({length: 50}, (_, i) => 200 + i * 15); // 焓值范围 kJ/kg
+
+            // 饱和曲线（简化）
+            const satLiquidP = hRange.map(h => 0.1 + 5 * Math.exp(-(h - 250) / 100));
+            const satVaporP = hRange.map(h => 0.1 + 5 * Math.exp(-(h - 400) / 120));
+
+            // 循环点
+            const points = [
+                {h: 400, p: results.evaporator.evaporating_pressure}, // 压缩机吸气
+                {h: 460, p: results.condenser.condensing_pressure}, // 压缩机排气
+                {h: 260, p: results.condenser.condensing_pressure}, // 冷凝器出口
+                {h: 260, p: results.evaporator.evaporating_pressure}, // 节流阀出口
+                {h: 400, p: results.evaporator.evaporating_pressure}  // 闭合
+            ];
+
+            const pointLabels = ['吸气点', '排气点', '冷凝出口', '节流出口', ''];
+
+            if (phChart) phChart.destroy();
+
+            phChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: '饱和液体线',
+                            data: hRange.map((h, i) => ({x: h, y: satLiquidP[i]})),
+                            borderColor: '#1976D2',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.4,
+                            pointRadius: 0
+                        },
+                        {
+                            label: '饱和气体线',
+                            data: hRange.map((h, i) => ({x: h, y: satVaporP[i]})),
+                            borderColor: '#EF4444',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.4,
+                            pointRadius: 0
+                        },
+                        {
+                            label: '制冷循环',
+                            data: points,
+                            borderColor: '#10B981',
+                            borderWidth: 3,
+                            fill: false,
+                            pointRadius: 6,
+                            pointBackgroundColor: '#10B981',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'nearest',
+                        intersect: false
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '焓值 (kJ/kg)'
+                            }
+                        },
+                        y: {
+                            type: 'logarithmic',
+                            title: {
+                                display: true,
+                                text: '压力 (MPa)'
+                            },
+                            min: 0.1,
+                            max: 6
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const idx = context.dataIndex;
+                                    if (context.dataset.label === '制冷循环' && idx < pointLabels.length) {
+                                        return `${pointLabels[idx]}: h=${context.parsed.x.toFixed(0)} kJ/kg, P=${context.parsed.y.toFixed(2)} MPa`;
+                                    }
+                                    return `h=${context.parsed.x.toFixed(0)} kJ/kg, P=${context.parsed.y.toFixed(2)} MPa`;
+                                }
+                            }
+                        },
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+        }
+
+        // 表单提交
+        document.getElementById('simForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            // 显示加载
+            const loadingModal = document.getElementById('loadingModal');
+            loadingModal.classList.remove('hidden');
+            const calcBtn = document.getElementById('calcBtn');
+            calcBtn.disabled = true;
+            calcBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>计算中...';
+
+            // 获取表单数据
+            const formData = new FormData(this);
+            const params = {
+                comp_dis: parseFloat(formData.get('comp_dis')),
+                comp_speed: parseInt(formData.get('comp_speed')),
+                refrigerant: formData.get('refrigerant'),
+                cond_area: parseFloat(formData.get('cond_area')),
+                evap_area: parseFloat(formData.get('evap_area')),
+                valve_open: parseFloat(formData.get('valve_open')),
+                amb_temp: parseFloat(formData.get('amb_temp')),
+                return_temp: parseFloat(formData.get('return_temp')),
+                humidity: parseFloat(formData.get('humidity'))
+            };
+
+            // 模拟计算延迟，增强用户体验
+            setTimeout(() => {
+                const results = calculateSimulation(params);
+                updateResults(results);
+
+                // 隐藏加载
+                loadingModal.classList.add('hidden');
+                calcBtn.disabled = false;
+                calcBtn.innerHTML = '<i class="fa fa-calculator mr-2"></i>开始计算';
+            }, 1000);
+        });
+
+        // 页面加载时初始化空的压焓图
+        window.addEventListener('load', function() {
+            updatePHChart({
+                evaporator: {evaporating_pressure: 0.9},
+                condenser: {condensing_pressure: 3.2}
+            });
+        });
+    </script>
+</body>
+</html>
