@@ -175,8 +175,8 @@
                                         class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">相对湿度 (0-1)</label>
-                                    <input type="number" name="humidity" value="0.5" min="0.1" max="1.0" step="0.05"
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">相对湿度 (%)</label>
+                                    <input type="number" name="humidity" value="50" min="10" max="100" step="5"
                                         class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
                                 </div>
                             </div>
@@ -636,6 +636,13 @@
             // 重置表单值为默认
             document.querySelector('input[name="comp_dis"]').value = '10';
             document.querySelector('input[name="comp_speed"]').value = '3000';
+            document.querySelector('select[name="refrigerant"]').value = 'R32';
+            document.querySelector('input[name="cond_area"]').value = '10';
+            document.querySelector('input[name="evap_area"]').value = '8';
+            document.querySelector('input[name="valve_open"]').value = '1.0';
+            document.querySelector('input[name="amb_temp"]').value = '35';
+            document.querySelector('input[name="return_temp"]').value = '27';
+            document.querySelector('input[name="humidity"]').value = '50';
         });
 
         // 处理文件
@@ -726,51 +733,100 @@
             const fileName = file.name.toLowerCase();
             const params = {};
 
-            // 模拟从文件名或内容中提取参数
+            // 制冷剂类型识别
             if (fileName.includes('r32')) params.refrigerant = 'R32';
             if (fileName.includes('r410a') || fileName.includes('410a')) params.refrigerant = 'R410A';
             if (fileName.includes('r22')) params.refrigerant = 'R22';
+            if (fileName.includes('r134a') || fileName.includes('134a')) params.refrigerant = 'R134a';
+            if (fileName.includes('r290') || fileName.includes('290')) params.refrigerant = 'R290';
 
-            // 模拟提取排量参数
-            const ccMatch = fileName.match(/(\d+\.?\d*)cc/) || fileName.match(/(\d+\.?\d*)cm³/);
+            // 排量参数识别 (cc, cm³, cm3)
+            const ccMatch = fileName.match(/(\d+\.?\d*)cc/) || fileName.match(/(\d+\.?\d*)cm³/) || fileName.match(/(\d+\.?\d*)cm3/);
             if (ccMatch) params.comp_dis = ccMatch[1];
 
-            // 模拟提取转速参数
-            const rpmMatch = fileName.match(/(\d+)rpm/) || fileName.match(/(\d+)转/);
+            // 转速参数识别 (rpm, 转, r/min)
+            const rpmMatch = fileName.match(/(\d+)rpm/) || fileName.match(/(\d+)转/) || fileName.match(/(\d+)r\/min/);
             if (rpmMatch) params.comp_speed = rpmMatch[1];
 
-            // 默认返回一些示例参数
-            return {
+            // 面积参数识别 (m², m2, 平米)
+            const condAreaMatch = fileName.match(/冷凝.*?(\d+\.?\d*)m²/) || fileName.match(/cond.*?(\d+\.?\d*)m2/);
+            const evapAreaMatch = fileName.match(/蒸发.*?(\d+\.?\d*)m²/) || fileName.match(/evap.*?(\d+\.?\d*)m2/);
+            if (condAreaMatch) params.cond_area = condAreaMatch[1];
+            if (evapAreaMatch) params.evap_area = evapAreaMatch[1];
+
+            // 功率参数识别 (kw, w, 千瓦)
+            const powerMatch = fileName.match(/(\d+\.?\d*)kw/) || fileName.match(/(\d+\.?\d*)千瓦/);
+            if (powerMatch) params['额定功率'] = powerMatch[1];
+
+            // 制冷量参数识别 (kw, 冷量, 制冷)
+            const coolingMatch = fileName.match(/(\d+\.?\d*)kw.*冷/) || fileName.match(/制冷.*?(\d+\.?\d*)kw/);
+            if (coolingMatch) params['制冷量'] = coolingMatch[1];
+
+            // 能效比识别 (eer, cop, 能效)
+            const eerMatch = fileName.match(/eer.*?(\d+\.?\d*)/) || fileName.match(/cop.*?(\d+\.?\d*)/) || fileName.match(/能效.*?(\d+\.?\d*)/);
+            if (eerMatch) params['能效比'] = eerMatch[1];
+
+            // 电压识别 (v, 电压, 伏)
+            const voltageMatch = fileName.match(/(\d+)v/) || fileName.match(/电压.*?(\d+)伏/);
+            if (voltageMatch) params['工作电压'] = voltageMatch[1];
+
+            // 温度参数
+            const tempMatch = fileName.match(/环境.*?(\d+)度/) || fileName.match(/amb.*?(\d+)c/);
+            if (tempMatch) params.amb_temp = tempMatch[1];
+
+            // 湿度参数 (百分比)
+            const humMatch = fileName.match(/湿度.*?(\d+)%/) || fileName.match(/hum.*?(\d+)/);
+            if (humMatch) params.humidity = humMatch[1];
+
+            // 默认返回参数
+            const defaultParams = {
                 comp_dis: params.comp_dis || '12.5',
                 comp_speed: params.comp_speed || '3600',
                 refrigerant: params.refrigerant || 'R32',
-                cond_area: '11.2',
-                evap_area: '9.5',
+                cond_area: params.cond_area || '11.2',
+                evap_area: params.evap_area || '9.5',
                 型号: fileName.replace(/\.[^/.]+$/, ''),
                 文件大小: `${(file.size / 1024 / 1024).toFixed(2)} MB`
             };
+
+            // 合并识别到的额外参数
+            return Object.assign(defaultParams, params);
         }
 
         // 显示提取的参数
         function showExtractedParams(params) {
             extractedParamsList.innerHTML = '';
             const paramMap = {
-                'comp_dis': '排量 (cc)',
-                'comp_speed': '转速 (rpm)',
-                'refrigerant': '制冷剂类型',
-                'cond_area': '冷凝器面积 (m²)',
-                'evap_area': '蒸发器面积 (m²)',
-                '型号': '压缩机型号',
-                '文件大小': '文件大小'
+                'comp_dis': { label: '排量', unit: 'cc' },
+                'comp_speed': { label: '转速', unit: 'rpm' },
+                'refrigerant': { label: '制冷剂类型', unit: '' },
+                'cond_area': { label: '冷凝器面积', unit: 'm²' },
+                'evap_area': { label: '蒸发器面积', unit: 'm²' },
+                'valve_open': { label: '阀门开度', unit: '' },
+                'amb_temp': { label: '环境温度', unit: '°C' },
+                'return_temp': { label: '回风温度', unit: '°C' },
+                'humidity': { label: '相对湿度', unit: '%' },
+                '型号': { label: '压缩机型号', unit: '' },
+                '文件大小': { label: '文件大小', unit: '' },
+                '额定功率': { label: '额定功率', unit: 'kW' },
+                '制冷量': { label: '制冷量', unit: 'kW' },
+                '能效比': { label: '能效比', unit: 'EER' },
+                '净重': { label: '净重', unit: 'kg' },
+                '噪音': { label: '噪音', unit: 'dB(A)' },
+                '工作电压': { label: '工作电压', unit: 'V' },
+                '工作频率': { label: '工作频率', unit: 'Hz' }
             };
 
             Object.keys(params).forEach(key => {
                 if (paramMap[key]) {
                     const paramItem = document.createElement('div');
                     paramItem.className = 'flex justify-between';
+                    const value = params[key];
+                    const unit = paramMap[key].unit;
+                    const displayValue = unit ? `${value} ${unit}` : value;
                     paramItem.innerHTML = `
-                        <span class="text-gray-600">${paramMap[key]}:</span>
-                        <span class="font-semibold text-green-800">${params[key]}</span>
+                        <span class="text-gray-600">${paramMap[key].label}:</span>
+                        <span class="font-semibold text-green-800">${displayValue}</span>
                     `;
                     extractedParamsList.appendChild(paramItem);
                 }
@@ -803,7 +859,7 @@
                     valve_open: parseFloat(formData.get('valve_open')),
                     amb_temp: parseFloat(formData.get('amb_temp')),
                     return_temp: parseFloat(formData.get('return_temp')),
-                    humidity: parseFloat(formData.get('humidity'))
+                    humidity: parseFloat(formData.get('humidity')) // 保存百分比值
                 }
             };
 
@@ -858,7 +914,10 @@
                     // 填充表单
                     Object.keys(template.params).forEach(key => {
                         const input = document.querySelector(`[name="${key}"]`);
-                        if (input) input.value = template.params[key];
+                        if (input) {
+                            // 湿度值已经是百分比格式，直接填充
+                            input.value = template.params[key];
+                        }
                     });
 
                     templateList.classList.add('hidden');
@@ -903,7 +962,7 @@
                 valve_open: parseFloat(formData.get('valve_open')),
                 amb_temp: parseFloat(formData.get('amb_temp')),
                 return_temp: parseFloat(formData.get('return_temp')),
-                humidity: parseFloat(formData.get('humidity'))
+                humidity: parseFloat(formData.get('humidity')) / 100 // 转换为0-1范围
             };
 
             // 模拟计算延迟，增强用户体验
